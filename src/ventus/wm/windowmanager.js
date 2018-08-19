@@ -14,9 +14,12 @@ define([
 function($, Window, View, DefaultMode, ExposeMode, FullscreenMode) {
 	'use strict';
 
-	var WindowManager = function () {
+	var WindowManager = function (container) {
+		var createWindow;
+
 		this.el = View('<div class="wm-space"><div class="wm-overlay" /></div>');
-		$(document.body).prepend(this.el);
+
+		$(container?container:document.body).prepend(this.el);
 
 		this.$overlay = this.el.find('.wm-overlay');
 		this.$overlay.css('z-index', this._baseZ-1);
@@ -44,9 +47,13 @@ function($, Window, View, DefaultMode, ExposeMode, FullscreenMode) {
 
 		this.mode = 'default';
 
-		// Binding sub-functions to this object
-		this.createWindow.fromQuery = this.createWindow.fromQuery.bind(this);
-		this.createWindow.fromElement = this.createWindow.fromElement.bind(this);
+		// Replace createWindow function on prototype with instance-specific copy
+		// (avoids pollution of prototype during the next step)
+		createWindow = this.createWindow;
+		this.createWindow = createWindow.bind(this);
+		// Bind this to sub-functions of createWindow function
+		this.createWindow.fromQuery = createWindow.fromQuery.bind(this);
+		this.createWindow.fromElement = createWindow.fromElement.bind(this);
 	};
 
 	WindowManager.prototype = {
@@ -67,7 +74,6 @@ function($, Window, View, DefaultMode, ExposeMode, FullscreenMode) {
 		},
 
 		set mode(value) {
-
 			var mode = this.modes[value];
 			if(!mode || this._mode === value) {
 				return;

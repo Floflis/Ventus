@@ -1,5 +1,5 @@
 /*!
- * Ventus 0.2.1
+ * Ventus 0.3
  * Copyright © 2015 Ramón Lamana
  * http://www.rlamana.com
  */
@@ -1149,11 +1149,17 @@ define('ventus/wm/window', [
             movable: true,
             resizable: true,
             widget: false,
-            titlebar: true
+            titlebar: true,
+            animations: true,
+            classname: '',
+            stayinspace: false
         };
+        if (options.animations) {
+            options.classname + ' animated';
+        }
         this.el = View(WindowTemplate({
             title: options.title,
-            classname: options.classname || ''
+            classname: options.classname
         }));
         this.el.listen(this.events.window, this);
         if (options.opacity) {
@@ -1183,9 +1189,11 @@ define('ventus/wm/window', [
         this._closed = true;
         this._destroyed = false;
         this.widget = false;
-        this.movable = true;
+        this.movable = typeof options.movable !== 'undefined' ? options.movable : true;
         this.resizable = typeof options.resizable !== 'undefined' ? options.resizable : true;
+        this.animations = typeof options.animations !== 'undefined' ? options.animations : true;
         this.titlebar = true;
+        this.stayinspace = typeof options.stayinspace !== 'undefined' ? options.stayinspace : false;
     };
     Window.prototype = {
         _restore: null,
@@ -1202,6 +1210,7 @@ define('ventus/wm/window', [
                     y: event.pageY
                 });
                 this.el.addClass('move');
+                this._space[0].classList.add('no-events');
                 e.preventDefault();
             }
         },
@@ -1222,7 +1231,9 @@ define('ventus/wm/window', [
                     }
                 },
                 '.wm-window-title mousedown': function (e) {
-                    this.slots.move.call(this, e);
+                    if (!this.maximized) {
+                        this.slots.move.call(this, e);
+                    }
                 },
                 '.wm-window-title dblclick': function () {
                     if (this.enabled && this.resizable) {
@@ -1264,6 +1275,7 @@ define('ventus/wm/window', [
                         width: this.width - event.pageX,
                         height: this.height - event.pageY
                     };
+                    this._space[0].classList.add('no-events');
                     this.el.addClass('resizing');
                     e.preventDefault();
                 }
@@ -1276,7 +1288,24 @@ define('ventus/wm/window', [
                         this._resizing && this._stopResize();
                     }
                     if (this._moving) {
-                        this.move(event.pageX - this._moving.x, event.pageY - this._moving.y);
+                        if (this.stayinspace) {
+                            if (this.el[0].clientWidth > this.space[0].clientWidth || this.el[0].clientHeight > this.space[0].clientHeight) {
+                                this.resize(Math.min(this.el[0].clientWidth, this.space[0].clientWidth), Math.min(this.el[0].clientHeight, this.space[0].clientHeight));
+                            }
+                            var movingX = Math.max(0, event.pageX - this._moving.x);
+                            var minusX = 0;
+                            var movingY = Math.max(0, event.pageY - this._moving.y);
+                            var minusY = 0;
+                            if (movingX + this.el[0].clientWidth > this.space[0].clientWidth) {
+                                minusX = movingX + this.el[0].clientWidth - this.space[0].clientWidth;
+                            }
+                            if (movingY + this.el[0].clientHeight > this.space[0].clientHeight) {
+                                minusY = movingY + this.el[0].clientHeight - this.space[0].clientHeight;
+                            }
+                            this.move(movingX - minusX, movingY - minusY);
+                        } else {
+                            this.move(event.pageX - this._moving.x, event.pageY - this._moving.y);
+                        }
                     }
                     if (this._resizing) {
                         this.resize(event.pageX + this._resizing.width, event.pageY + this._resizing.height);
@@ -1290,9 +1319,11 @@ define('ventus/wm/window', [
         },
         _stopMove: function () {
             this.el.removeClass('move');
+            this._space[0].classList.remove('no-events');
             this._moving = null;
         },
         _stopResize: function () {
+            this._space[0].classList.remove('no-events');
             this.el.removeClass('resizing');
             this._restore = null;
             this._resizing = null;
@@ -1315,8 +1346,10 @@ define('ventus/wm/window', [
         set maximized(value) {
             if (value) {
                 this._restoreMaximized = this.stamp();
+                this.el.addClass('maximized');
                 this.signals.emit('maximize', this, this._restoreMaximized);
             } else {
+                this.el.removeClass('maximized');
                 this.signals.emit('restore', this, this._restoreMaximized);
             }
             this._maximized = value;
@@ -1403,6 +1436,17 @@ define('ventus/wm/window', [
         get titlebar() {
             return this._titlebar;
         },
+        set animations(value) {
+            if (value) {
+                this.el.addClass('animated');
+            } else {
+                this.el.removeClass('animated');
+            }
+            this._animations = value;
+        },
+        get animations() {
+            return this._animations;
+        },
         set width(value) {
             this.el.width(value);
         },
@@ -1467,7 +1511,7 @@ define('ventus/wm/window', [
             }.bind(this);
             this.signals.emit('destroy', this);
             if (!this.closed) {
-                this.close().then(function () {
+                this.close().getFuture().then(function () {
                     destroy();
                 });
             } else {
@@ -1506,17 +1550,27 @@ define('ventus/wm/window', [
         },
         maximize: function () {
             this.el.addClass('maximazing');
-            this.el.onTransitionEnd(function () {
+            var endMaximize = function () {
                 this.el.removeClass('maximazing');
-            }, this);
+            };
+            if (this.animations) {
+                this.el.onTransitionEnd(endMaximize, this);
+            } else {
+                endMaximize.call(this);
+            }
             this.maximized = !this.maximized;
             return this;
         },
         minimize: function () {
             this.el.addClass('minimizing');
-            this.el.onTransitionEnd(function () {
+            var endMinimize = function () {
                 this.el.removeClass('minimizing');
-            }, this);
+            };
+            if (this.animations) {
+                this.el.onTransitionEnd(endMinimize, this);
+            } else {
+                endMinimize.call(this);
+            }
             this.minimized = !this.minimized;
             return this;
         },
@@ -2187,7 +2241,10 @@ define('ventus/wm/modes/default', [], function () {
 define('underscore', [], function () {
     return;
 });
-define('ventus/wm/modes/expose', ['underscore'], function (_) {
+define('ventus/wm/modes/expose', [
+    'underscore',
+    'ventus/core/promise'
+], function (_, Promise) {
     'use strict';
     var ExposeMode = {
         register: function () {
@@ -2233,9 +2290,14 @@ define('ventus/wm/modes/expose', ['underscore'], function (_) {
                 win.el.css('transform', 'scale(' + scale + ')');
                 win.el.css('top', top);
                 win.el.css('left', left);
-                win.el.onTransitionEnd(function () {
+                var endExposing = function () {
                     win.el.removeClass('exposing');
-                }, this);
+                };
+                if (win.animations) {
+                    win.el.onTransitionEnd(endExposing, this);
+                } else {
+                    endExposing.call(this);
+                }
             }
             this.overlay = true;
             this.el.one('click', function () {
@@ -2243,18 +2305,31 @@ define('ventus/wm/modes/expose', ['underscore'], function (_) {
             });
         },
         unplug: function () {
+            var promise = new Promise();
+            promise.getFuture().then(function () {
+                this.el.removeClass('expose');
+            }.bind(this));
+            if (this.windows.length === 0) {
+                promise.done();
+            }
             for (var win, i = this.windows.length; i--;) {
                 win = this.windows[i];
                 win.restore();
                 win.el.css('transform', 'scale(1)');
                 win.el.css('transform-origin', '50% 50%');
-                var removeTransform = function (win) {
+                var removeTransform = function (win, windowIndex) {
                     return function () {
-                        this.el.removeClass('expose');
+                        if (windowIndex === 0) {
+                            promise.done();
+                        }
                         win.el.css('transform', '');
                     };
-                }(win);
-                this.el.onTransitionEnd(removeTransform, this);
+                }(win, i);
+                if (win.animations) {
+                    this.el.onTransitionEnd(removeTransform, this);
+                } else {
+                    removeTransform.call(this);
+                }
                 win.movable = true;
                 win.enabled = true;
             }
@@ -2331,9 +2406,10 @@ define('ventus/wm/windowmanager', [
     'ventus/wm/modes/fullscreen'
 ], function ($, Window, View, DefaultMode, ExposeMode, FullscreenMode) {
     'use strict';
-    var WindowManager = function () {
+    var WindowManager = function (container) {
+        var createWindow;
         this.el = View('<div class="wm-space"><div class="wm-overlay" /></div>');
-        $(document.body).prepend(this.el);
+        $(container ? container : document.body).prepend(this.el);
         this.$overlay = this.el.find('.wm-overlay');
         this.$overlay.css('z-index', this._baseZ - 1);
         this.actions.forEach(function (value) {
@@ -2353,8 +2429,10 @@ define('ventus/wm/windowmanager', [
         this.windows = [];
         this.active = null;
         this.mode = 'default';
-        this.createWindow.fromQuery = this.createWindow.fromQuery.bind(this);
-        this.createWindow.fromElement = this.createWindow.fromElement.bind(this);
+        createWindow = this.createWindow;
+        this.createWindow = createWindow.bind(this);
+        this.createWindow.fromQuery = createWindow.fromQuery.bind(this);
+        this.createWindow.fromElement = createWindow.fromElement.bind(this);
     };
     WindowManager.prototype = {
         actions: [

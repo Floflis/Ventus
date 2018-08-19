@@ -34,13 +34,20 @@ function(Emitter, Promise, View, WindowTemplate) {
 			movable: true,
 			resizable: true,
 			widget: false,
-			titlebar: true
-		};
+			titlebar: true,
+			animations: true,
+			classname: '',
+			stayinspace: false
+    };
+
+    if (options.animations) {
+      options.classname + ' animated';
+    }
 
 		// View
 		this.el = View(WindowTemplate({
 			title: options.title,
-			classname: options.classname||''
+			classname: options.classname
 		}));
 		this.el.listen(this.events.window, this);
 
@@ -85,12 +92,19 @@ function(Emitter, Promise, View, WindowTemplate) {
 
 		// Properties
 		this.widget = false;
-		this.movable = true;
+		this.movable = (typeof options.movable !== 'undefined') ?
+			options.movable :
+			true;
 		this.resizable = (typeof options.resizable !== 'undefined') ?
 			options.resizable :
 			true;
-
+		this.animations = (typeof options.animations !== 'undefined') ?
+			options.animations:
+			true;
 		this.titlebar = true;
+		this.stayinspace = (typeof options.stayinspace !== 'undefined') ?
+			options.stayinspace:
+			false;
 	};
 
 	Window.prototype = {
@@ -112,6 +126,7 @@ function(Emitter, Promise, View, WindowTemplate) {
 				});
 
 				this.el.addClass('move');
+				this._space[0].classList.add('no-events');
 
 				e.preventDefault();
 			}
@@ -138,7 +153,9 @@ function(Emitter, Promise, View, WindowTemplate) {
 				},
 
 				'.wm-window-title mousedown': function(e) {
-					this.slots.move.call(this, e);
+					if(!this.maximized) {
+						this.slots.move.call(this, e);
+					}
 				},
 
 				'.wm-window-title dblclick': function() {
@@ -193,6 +210,7 @@ function(Emitter, Promise, View, WindowTemplate) {
 						height: this.height - event.pageY
 					};
 
+					this._space[0].classList.add('no-events');
 					this.el.addClass('resizing');
 
 					e.preventDefault();
@@ -210,10 +228,36 @@ function(Emitter, Promise, View, WindowTemplate) {
 					}
 
 					if (this._moving) {
-						this.move(
-							event.pageX - this._moving.x,
-							event.pageY - this._moving.y
-						);
+						if (this.stayinspace) {
+							if(
+							    this.el[0].clientWidth > this.space[0].clientWidth ||
+							    this.el[0].clientHeight > this.space[0].clientHeight
+							) {
+								this.resize(
+									Math.min(this.el[0].clientWidth,this.space[0].clientWidth),
+									Math.min(this.el[0].clientHeight,this.space[0].clientHeight)
+								);
+							}
+							var movingX = Math.max(0, event.pageX - this._moving.x);
+							var minusX = 0;
+							var movingY = Math.max(0, event.pageY - this._moving.y);
+							var minusY = 0;
+							if (movingX + this.el[0].clientWidth > this.space[0].clientWidth) {
+								minusX = movingX + this.el[0].clientWidth - this.space[0].clientWidth;
+							}
+							if (movingY + this.el[0].clientHeight > this.space[0].clientHeight) {
+								minusY = movingY + this.el[0].clientHeight - this.space[0].clientHeight;
+							}
+							this.move(
+								(movingX - minusX),
+								(movingY - minusY)
+							);
+						} else {
+							this.move(
+								event.pageX - this._moving.x,
+								event.pageY - this._moving.y
+							);
+						}
 					}
 
 					if(this._resizing) {
@@ -233,10 +277,12 @@ function(Emitter, Promise, View, WindowTemplate) {
 
 		_stopMove: function() {
 			this.el.removeClass('move');
+			this._space[0].classList.remove('no-events');
 			this._moving = null;
 		},
 
 		_stopResize: function() {
+		  this._space[0].classList.remove('no-events');
 			this.el.removeClass('resizing');
 			this._restore = null;
 			this._resizing = null;
@@ -264,9 +310,11 @@ function(Emitter, Promise, View, WindowTemplate) {
 		set maximized(value) {
 			if(value) {
 				this._restoreMaximized = this.stamp();
+				this.el.addClass('maximized');
 				this.signals.emit('maximize', this, this._restoreMaximized);
 			}
 			else {
+				this.el.removeClass('maximized');
 				this.signals.emit('restore', this, this._restoreMaximized);
 			}
 			this._maximized = value;
@@ -379,6 +427,20 @@ function(Emitter, Promise, View, WindowTemplate) {
 			return this._titlebar;
 		},
 
+		set animations(value) {
+			if (value) {
+				this.el.addClass('animated');
+			} else {
+				this.el.removeClass('animated');
+			}
+
+			this._animations = value;
+		},
+
+		get animations() {
+			return this._animations;
+		},
+
 		set width(value) {
 			this.el.width(value);
 		},
@@ -430,7 +492,7 @@ function(Emitter, Promise, View, WindowTemplate) {
 			// Open animation
 			this.el.show();
 			this.el.addClass('opening');
-			this.el.onAnimationEnd(function(){
+			this.el.onAnimationEnd(function () {
 				this.el.removeClass('opening');
 				promise.done();
 			}, this);
@@ -444,7 +506,7 @@ function(Emitter, Promise, View, WindowTemplate) {
 			this.signals.emit('close', this);
 
 			this.el.addClass('closing');
-			this.el.onAnimationEnd(function(){
+			this.el.onAnimationEnd(function () {
 				this.el.removeClass('closing');
 				this.el.addClass('closed');
 				this.el.hide();
@@ -470,7 +532,7 @@ function(Emitter, Promise, View, WindowTemplate) {
 			this.signals.emit('destroy', this);
 
 			if(!this.closed) {
-				this.close().then(function() {
+				this.close().getFuture().then(function() {
 					destroy();
 				});
 			}
@@ -520,20 +582,34 @@ function(Emitter, Promise, View, WindowTemplate) {
 		restore: function(){},
 
 		maximize: function() {
-			this.el.addClass('maximazing');
-			this.el.onTransitionEnd(function(){
+      this.el.addClass('maximazing');
+      
+      var endMaximize = function(){
 				this.el.removeClass('maximazing');
-			}, this);
+			};
+
+      if (this.animations) {
+        this.el.onTransitionEnd(endMaximize, this);
+      } else {
+        endMaximize.call(this);
+      }
 
 			this.maximized = !this.maximized;
 			return this;
 		},
 
 		minimize: function() {
-			this.el.addClass('minimizing');
-			this.el.onTransitionEnd(function(){
+      this.el.addClass('minimizing');
+
+      var endMinimize = function() {
 				this.el.removeClass('minimizing');
-			}, this);
+			};
+      
+      if (this.animations) {
+        this.el.onTransitionEnd(endMinimize, this);
+      } else {
+        endMinimize.call(this);
+      }
 
 			this.minimized = !this.minimized;
 			return this;
