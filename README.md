@@ -1,7 +1,11 @@
-Ventus WM [![Build Status](https://travis-ci.org/rlamana/Ventus.svg?branch=master)](https://travis-ci.org/rlamana/Ventus) [![Join the chat at https://gitter.im/rlamana/Ventus](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/rlamana/Ventus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+Adventus WM [![Build Status](https://travis-ci.org/rlamana/Ventus.svg?branch=master)](https://travis-ci.org/rlamana/Ventus) [![Join the chat at https://gitter.im/rlamana/Ventus](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/rlamana/Ventus?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 ===========================
 
 A window manager written in Javascript, HTML5 and CSS3.
+
+This fork, Adventus, implements GTK-compatible CSS classes to window elements, and other improvements such as compatibility with Framlr for Electron.
+
+If its the desire of the original author, this fork can cease by being merged upstream.
 
 <a href="http://www.rlamana.com/ventus">Live Demo!</a> (http://www.rlamana.com/ventus) | <a href="https://vimeo.com/62041866">Video Demo</a>
 
