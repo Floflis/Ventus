@@ -7,7 +7,9 @@ This fork, Adventus, implements GTK-compatible CSS classes to window elements, a
 
 If its the desire of the original author, this fork can cease by being merged upstream.
 
-<a href="http://www.rlamana.com/ventus">Live Demo!</a> (http://www.rlamana.com/ventus) | <a href="https://vimeo.com/62041866">Video Demo</a>
+<a href="http://www.rlamana.com/ventus">Live Demo!</a> (https://floflis.github.io/Adventus/examples/simple/) | <a href="https://vimeo.com/62041866">Video Demo</a>
+
+<a href="http://www.rlamana.com/ventus">Desktop Demo!</a> (https://floflis.github.io/Adventus/examples/desktop/)
 
 This project started as an experiment and even though it was stable enough **it was never meant to be mantained over time**. However, feel free to fork and send PRs!
 
